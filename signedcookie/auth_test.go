@@ -1,6 +1,7 @@
 package signedcookie
 
 import (
+	"crypto/sha1"
 	"reflect"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ var decodeData = []struct {
 }
 
 func TestDecode(t *testing.T) {
+	defaultSignAlgorithm = sha1.New
 	now = testNowOK
 	for _, d := range decodeData {
 		decoded, err := Decode(d.kind, DefaultMaxAge, d.secret, d.cookie, testSalt)

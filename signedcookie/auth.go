@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -34,6 +34,9 @@ const (
 const DefaultMaxAge = 14 * 24 * time.Hour
 
 var defaultSep = []byte{':'}
+
+// defaultSignAlgorithm changes between Django versions
+var defaultSignAlgorithm = sha256.New
 
 // b64Encode encodes a slice of bytes in a Django-compatible way,
 // trimming trailing '=' padding specified by the standard.
@@ -91,7 +94,7 @@ func djangoSignature(salt string, value []byte, secret string) []byte {
 	key = append(key, salt...)
 	key = append(key, "signer"...)
 	key = append(key, secret...)
-	mac := hmac.New(sha1.New, key)
+	mac := hmac.New(defaultSignAlgorithm, key)
 	mac.Write(value)
 	return b64Encode(mac.Sum(nil))
 }
@@ -139,7 +142,7 @@ func timestampUnsign(maxAge time.Duration, secret string, cookie []byte, salt st
 }
 
 // signingLoads implements cookie object decoding in a way that is
-// compatable with django.core.signing.loads.  It returns a map
+// compatible with django.core.signing.loads.  It returns a map
 // representing the encoded object, or an error if one occured.
 func signingLoads(s Serializer, maxAge time.Duration, secret, cookie string, salt string) (map[string]interface{}, error) {
 	c := []byte(cookie) // XXX: does this escape?
@@ -162,7 +165,7 @@ func signingLoads(s Serializer, maxAge time.Duration, secret, cookie string, sal
 			return nil, fmt.Errorf("zlib.NewReader: %s", err)
 		}
 		payload, err = ioutil.ReadAll(r)
-		r.Close()
+		err = r.Close()
 		if err != nil {
 			return nil, fmt.Errorf("ReadAll(zlib): %s", err)
 		}
