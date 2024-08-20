@@ -13,7 +13,6 @@ import (
 	"compress/zlib"
 	"crypto/hmac"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -56,7 +55,10 @@ func b64Encode(b []byte) []byte {
 func b64Decode(b []byte) ([]byte, error) {
 	// Django's signing module strips all '=' padding from its
 	// encoded representation of b.  Add them back here.
-	pad := 4 - (len(b) % 4)
+	pad := 4 - len(b)%4
+	if pad == 4 {
+		pad = 0
+	}
 	for i := 0; i < pad; i++ {
 		// append is ideal here, because we can overwrite the
 		// timestamp that immediately follows the payload and
@@ -90,6 +92,7 @@ func djangoSignature(salt string, value []byte, secret string) []byte {
 	// explicit make + append instead of
 	// []byte(salt+"signer"+secret) avoids an allocation. copy
 	// instead of append doesn't change allocation count.
+
 	key := make([]byte, 0, len(salt)+len("signer")+len(secret))
 	key = append(key, salt...)
 	key = append(key, "signer"...)
@@ -109,7 +112,7 @@ func unsign(secret string, cookie []byte, salt string) ([]byte, error) {
 	val := cookie[:i]
 	sig := cookie[i+1:]
 	expectedSig := djangoSignature(salt, val, secret)
-	if subtle.ConstantTimeCompare([]byte(sig), expectedSig) != 1 {
+	if !hmac.Equal(expectedSig, sig) {
 		return nil, fmt.Errorf("signature mismatch: '%s' != '%s'", sig, string(expectedSig))
 	}
 	return val, nil
